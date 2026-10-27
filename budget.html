@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mon Budget Mensuel</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #181c27;
+    --card: #1e2235;
+    --card-border: #2a2f45;
+    --text: #e8eaf2;
+    --muted: #7b82a0;
+    --accent: #4f8ef7;
+    --accent-dim: #1a2d56;
+    --green: #34c77b;
+    --green-dim: #0d3322;
+    --red: #f75f5f;
+    --red-dim: #3a1010;
+    --amber: #f5a623;
+    --amber-dim: #3a2800;
+    --purple: #a78bfa;
+    --purple-dim: #2a1f50;
+    --radius: 10px;
+    --pad: 14px;
+    font-size: 15px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+  /* LAYOUT */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px; background: var(--surface);
+    border-bottom: 1px solid var(--card-border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  header h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+  .month-nav { display: flex; align-items: center; gap: 8px; }
+  .month-nav button {
+    background: var(--card); border: 1px solid var(--card-border);
+    color: var(--text); border-radius: 7px; padding: 6px 12px;
+    cursor: pointer; font-size: 14px; transition: background 0.15s;
+  }
+  .month-nav button:hover { background: var(--card-border); }
+  #monthLabel { font-size: 16px; font-weight: 500; min-width: 160px; text-align: center; }
+
+  .main { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; padding: 20px 24px; }
+
+  /* SUMMARY BAR */
+  .summary-bar {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+    padding: 0 24px 0; margin-bottom: 4px;
+  }
+  .sum-card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: var(--radius); padding: 14px 16px;
+  }
+  .sum-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .sum-value { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .sum-value.income { color: var(--green); }
+  .sum-value.expense { color: var(--red); }
+  .sum-value.balance.pos { color: var(--green); }
+  .sum-value.balance.neg { color: var(--red); }
+  .sum-value.savings { color: var(--purple); }
+
+  /* COLUMNS */
+  .col { display: flex; flex-direction: column; gap: 12px; }
+  .col-title {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); padding: 2px 0 6px;
+    border-bottom: 1px solid var(--card-border);
+  }
+
+  /* SECTION */
+  .section { background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius); overflow: hidden; }
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px var(--pad); border-bottom: 1px solid var(--card-border);
+    background: rgba(255,255,255,0.02);
+  }
+  .section-name { font-size: 13px; font-weight: 500; }
+  .section-total { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .section-total.income { color: var(--green); }
+  .section-total.expense { color: var(--red); }
+  .section-total.savings { color: var(--purple); }
+
+  /* ROWS */
+  .row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px var(--pad); border-bottom: 1px solid rgba(255,255,255,0.04);
+    gap: 8px;
+  }
+  .row:last-child { border-bottom: none; }
+  .row-label { font-size: 13px; color: var(--muted); flex: 1; }
+  .row-input {
+    width: 110px; background: var(--surface); border: 1px solid var(--card-border);
+    border-radius: 6px; padding: 5px 8px; color: var(--text);
+    font-size: 14px; font-weight: 600; text-align: right;
+    font-family: inherit; font-variant-numeric: tabular-nums;
+    transition: border-color 0.15s;
+  }
+  .row-input:focus { outline: none; border-color: var(--accent); }
+  .row-input::placeholder { color: var(--card-border); font-weight: 400; }
+
+  /* CARRIED / READONLY */
+  .row-value {
+    width: 110px; font-size: 14px; font-weight: 700; text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--green);
+  }
+
+  /* TOTAL ROW */
+  .total-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px var(--pad);
+    background: rgba(255,255,255,0.03);
+    border-top: 1px solid var(--card-border);
+  }
+  .total-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+  .total-value { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .total-value.income { color: var(--green); }
+  .total-value.expense { color: var(--red); }
+  .total-value.savings { color: var(--purple); }
+
+  /* TRANSFER BUTTON */
+  .transfer-wrap { padding: 0 24px 20px; }
+  .transfer-card {
+    background: var(--accent-dim); border: 1px solid var(--accent);
+    border-radius: var(--radius); padding: 16px 20px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .transfer-info p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .transfer-info strong { color: var(--text); font-size: 15px; }
+  .transfer-btn {
+    background: var(--accent); color: #fff; border: none;
+    border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 600;
+    cursor: pointer; white-space: nowrap; transition: opacity 0.15s;
+  }
+  .transfer-btn:hover { opacity: 0.85; }
+  .transfer-btn:disabled { opacity: 0.3; cursor: default; }
+
+  /* BARS */
+  .bar-wrap { height: 4px; background: rgba(255,255,255,0.07); border-radius: 2px; margin: 8px var(--pad) 4px; }
+  .bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s; }
+
+  .badge {
+    display: inline-block; font-size: 10px; font-weight: 600;
+    padding: 2px 7px; border-radius: 4px; margin-left: 6px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .badge.carried { background: var(--green-dim); color: var(--green); }
+
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; }
+    .summary-bar { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* VARIABLE ENTRIES */
+  .var-cat-row { border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .var-cat-row:last-of-type { border-bottom: none; }
+  .var-cat-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px var(--pad); cursor: pointer; user-select: none;
+    transition: background 0.12s;
+  }
+  .var-cat-header:hover { background: rgba(255,255,255,0.03); }
+  .var-cat-name { font-size: 13px; color: var(--muted); }
+  .var-cat-right { display: flex; align-items: center; gap: 10px; }
+  .var-cat-total { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .var-chevron { font-size: 11px; color: var(--muted); transition: transform 0.2s; display: inline-block; }
+  .var-chevron.open { transform: rotate(90deg); }
+  .var-entries { display: none; background: rgba(0,0,0,0.15); }
+  .var-entries.open { display: block; }
+  .var-entry {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 5px var(--pad) 5px calc(var(--pad) + 8px);
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    gap: 8px;
+  }
+  .var-entry-label { font-size: 12px; color: var(--muted); flex: 1; }
+  .var-entry-amount { font-size: 13px; font-weight: 600; color: var(--red); font-variant-numeric: tabular-nums; }
+  .var-entry-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 3px; line-height: 1; }
+  .var-entry-del:hover { color: var(--red); background: var(--red-dim); }
+  .var-add-row { display: none; align-items: center; gap: 6px; padding: 7px var(--pad) 7px calc(var(--pad) + 8px); background: rgba(0,0,0,0.1); }
+  .var-add-row.open { display: flex; }
+  .var-add-input { width: 100px; background: var(--surface); border: 1px solid var(--card-border); border-radius: 5px; padding: 4px 7px; color: var(--text); font-size: 13px; text-align: right; font-family: inherit; }
+  .var-add-input:focus { outline: none; border-color: var(--accent); }
+  .var-add-label { flex: 1; background: var(--surface); border: 1px solid var(--card-border); border-radius: 5px; padding: 4px 7px; color: var(--text); font-size: 13px; font-family: inherit; }
+  .var-add-label:focus { outline: none; border-color: var(--accent); }
+  .var-add-btn { background: var(--accent); color: #fff; border: none; border-radius: 5px; width: 28px; height: 28px; font-size: 18px; cursor: pointer; line-height: 1; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .var-add-btn:hover { opacity: 0.85; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>💰 Mon Budget Mensuel</h1>
+  <div class="month-nav">
+    <button onclick="changeMonth(-1)">&#8592;</button>
+    <span id="monthLabel"></span>
+    <button onclick="changeMonth(1)">&#8594;</button>
+  </div>
+</header>
+
+<div class="summary-bar" style="padding-top:20px">
+  <div class="sum-card">
+    <div class="sum-label">Revenus totaux</div>
+    <div class="sum-value income" id="sumIncome">0,00 €</div>
+  </div>
+  <div class="sum-card">
+    <div class="sum-label">Dépenses fixes</div>
+    <div class="sum-value expense" id="sumFixed">0,00 €</div>
+  </div>
+  <div class="sum-card">
+    <div class="sum-label">Dépenses variables</div>
+    <div class="sum-value expense" id="sumVar">0,00 €</div>
+  </div>
+  <div class="sum-card">
+    <div class="sum-label">Solde restant</div>
+    <div class="sum-value balance" id="sumBalance">0,00 €</div>
+  </div>
+</div>
+
+<div class="main">
+  <!-- COL 1: REVENUS -->
+  <div class="col">
+    <div class="col-title">Revenus</div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-name">Revenus du mois</span>
+      </div>
+
+      <div class="row">
+        <span class="row-label">Salaire</span>
+        <input class="row-input income-input" type="number" min="0" placeholder="0" data-key="salaire" oninput="update()" />
+      </div>
+      <div class="row">
+        <span class="row-label">APL</span>
+        <input class="row-input income-input" type="number" min="0" placeholder="0" data-key="apl" oninput="update()" />
+      </div>
+      <div class="var-cat-row" data-cat="extra" style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+        <div class="var-cat-header" onclick="toggleCat('extra')">
+          <span class="var-cat-name" style="color:var(--muted);font-size:13px;">Extra</span>
+          <div class="var-cat-right">
+            <span class="var-cat-total income" id="cat-total-extra" style="color:var(--green);">0,00 €</span>
+            <span class="var-chevron" id="chev-extra">▸</span>
+          </div>
+        </div>
+        <div class="var-entries" id="entries-extra"></div>
+        <div class="var-add-row" id="add-extra">
+          <input type="number" class="var-add-input" placeholder="Montant €" id="amt-extra" min="0" />
+          <input type="text" class="var-add-label" placeholder="Libellé (optionnel)" id="lbl-extra" />
+          <button class="var-add-btn" onclick="addExtraEntry()">+</button>
+        </div>
+      </div>
+      <div class="row">
+        <span class="row-label">Revenu restant mois dernier <span class="badge carried">report</span></span>
+        <span class="row-value" id="carriedDisplay">0,00 €</span>
+      </div>
+
+      <div class="total-row">
+        <span class="total-label">Total revenus</span>
+        <span class="total-value income" id="incomeTotal">0,00 €</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- COL 2: DÉPENSES FIXES -->
+  <div class="col">
+    <div class="col-title">Dépenses fixes</div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-name">Charges mensuelles</span>
+        <span class="section-total expense" id="fixedHeader">0,00 €</span>
+      </div>
+
+      <div class="row"><span class="row-label">Loyer</span><input class="row-input fixed-input" type="number" min="0" placeholder="0" data-key="loyer" oninput="update()" /></div>
+      <div class="row"><span class="row-label">Électricité</span><input class="row-input fixed-input" type="number" min="0" placeholder="0" data-key="electricite" oninput="update()" /></div>
+      <div class="row"><span class="row-label">Gaz</span><input class="row-input fixed-input" type="number" min="0" placeholder="0" data-key="gaz" oninput="update()" /></div>
+      <div class="row"><span class="row-label">Internet</span><input class="row-input fixed-input" type="number" min="0" placeholder="0" data-key="internet" oninput="update()" /></div>
+      <div class="row"><span class="row-label">Parking</span><input class="row-input fixed-input" type="number" min="0" placeholder="0" data-key="parking" oninput="update()" /></div>
+      <div class="row"><span class="row-label">Abonnement télé</span><input class="row-input fixed-input" type="number" min="0" placeholder="0" data-key="tele" oninput="update()" /></div>
+      <div class="row"><span class="row-label">Sport</span><input class="row-input fixed-input" type="number" min="0" placeholder="0" data-key="sport" oninput="update()" /></div>
+      <div class="row"><span class="row-label">Assurance</span><input class="row-input fixed-input" type="number" min="0" placeholder="0" data-key="animaux" oninput="update()" /></div>
+      <div class="row"><span class="row-label">Frais bancaires</span><input class="row-input fixed-input" type="number" min="0" placeholder="0" data-key="banque" oninput="update()" /></div>
+
+      <div class="total-row">
+        <span class="total-label">Total fixes</span>
+        <span class="total-value expense" id="fixedTotal">0,00 €</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- COL 3: DÉPENSES VARIABLES -->
+  <div class="col">
+    <div class="col-title">Dépenses variables</div>
+
+    <div class="section" id="varSection">
+      <div class="section-header">
+        <span class="section-name">Quotidien &amp; loisirs</span>
+        <span class="section-total expense" id="varHeader">0,00 €</span>
+      </div>
+
+      <div class="var-cat-row" data-cat="nourriture">
+        <div class="var-cat-header" onclick="toggleCat('nourriture')">
+          <span class="var-cat-name">Nourriture</span>
+          <div class="var-cat-right">
+            <span class="var-cat-total expense" id="cat-total-nourriture">0,00 €</span>
+            <span class="var-chevron" id="chev-nourriture">▸</span>
+          </div>
+        </div>
+        <div class="var-entries" id="entries-nourriture"></div>
+        <div class="var-add-row" id="add-nourriture">
+          <input type="number" class="var-add-input" placeholder="Montant €" id="amt-nourriture" min="0" />
+          <input type="text" class="var-add-label" placeholder="Libellé (optionnel)" id="lbl-nourriture" />
+          <button class="var-add-btn" onclick="addVarEntry('nourriture')">+</button>
+        </div>
+      </div>
+
+      <div class="var-cat-row" data-cat="croquettes">
+        <div class="var-cat-header" onclick="toggleCat('croquettes')">
+          <span class="var-cat-name">Croquettes &amp; litière</span>
+          <div class="var-cat-right">
+            <span class="var-cat-total expense" id="cat-total-croquettes">0,00 €</span>
+            <span class="var-chevron" id="chev-croquettes">▸</span>
+          </div>
+        </div>
+        <div class="var-entries" id="entries-croquettes"></div>
+        <div class="var-add-row" id="add-croquettes">
+          <input type="number" class="var-add-input" placeholder="Montant €" id="amt-croquettes" min="0" />
+          <input type="text" class="var-add-label" placeholder="Libellé (optionnel)" id="lbl-croquettes" />
+          <button class="var-add-btn" onclick="addVarEntry('croquettes')">+</button>
+        </div>
+      </div>
+
+      <div class="var-cat-row" data-cat="loisirs">
+        <div class="var-cat-header" onclick="toggleCat('loisirs')">
+          <span class="var-cat-name">Loisirs</span>
+          <div class="var-cat-right">
+            <span class="var-cat-total expense" id="cat-total-loisirs">0,00 €</span>
+            <span class="var-chevron" id="chev-loisirs">▸</span>
+          </div>
+        </div>
+        <div class="var-entries" id="entries-loisirs"></div>
+        <div class="var-add-row" id="add-loisirs">
+          <input type="number" class="var-add-input" placeholder="Montant €" id="amt-loisirs" min="0" />
+          <input type="text" class="var-add-label" placeholder="Libellé (optionnel)" id="lbl-loisirs" />
+          <button class="var-add-btn" onclick="addVarEntry('loisirs')">+</button>
+        </div>
+      </div>
+
+      <div class="var-cat-row" data-cat="autres">
+        <div class="var-cat-header" onclick="toggleCat('autres')">
+          <span class="var-cat-name">Autres</span>
+          <div class="var-cat-right">
+            <span class="var-cat-total expense" id="cat-total-autres">0,00 €</span>
+            <span class="var-chevron" id="chev-autres">▸</span>
+          </div>
+        </div>
+        <div class="var-entries" id="entries-autres"></div>
+        <div class="var-add-row" id="add-autres">
+          <input type="number" class="var-add-input" placeholder="Montant €" id="amt-autres" min="0" />
+          <input type="text" class="var-add-label" placeholder="Libellé (optionnel)" id="lbl-autres" />
+          <button class="var-add-btn" onclick="addVarEntry('autres')">+</button>
+        </div>
+      </div>
+
+      <div class="total-row" style="border-top: 1px solid var(--card-border); border-bottom: 1px solid var(--card-border); background: transparent; margin-bottom:4px;">
+        <span class="total-label">Sous-total</span>
+        <span class="total-value expense" id="varSubTotal">0,00 €</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-name">Épargne &amp; investissements</span>
+        <span class="section-total savings" id="savingsHeader">0,00 €</span>
+      </div>
+
+      <div class="row"><span class="row-label">Épargne</span><input class="row-input savings-input" type="number" min="0" placeholder="0" data-key="epargne" oninput="update()" /></div>
+      <div class="row"><span class="row-label">Bourse</span><input class="row-input savings-input" type="number" min="0" placeholder="0" data-key="bourse" oninput="update()" /></div>
+
+      <div class="total-row">
+        <span class="total-label">Total épargne</span>
+        <span class="total-value savings" id="savingsTotal">0,00 €</span>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="section" style="padding: 12px 0 8px;">
+      <div style="padding: 0 14px 6px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:12px; color:var(--muted);">Budget utilisé</span>
+        <span style="font-size:12px; font-weight:700;" id="pctLabel">0 %</span>
+      </div>
+      <div class="bar-wrap" style="margin-top:0;">
+        <div class="bar-fill" id="barFill" style="width:0%; background: var(--green);"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TRANSFER -->
+<div class="transfer-wrap">
+  <div class="transfer-card" id="transferCard">
+    <div class="transfer-info">
+      <strong>Reporter le solde au mois suivant</strong>
+      <p id="transferDesc">Calculez vos revenus et dépenses pour activer le report.</p>
+    </div>
+    <button class="transfer-btn" id="transferBtn" onclick="transferToNext()" disabled>Reporter →</button>
+  </div>
+</div>
+<div style="padding: 0 24px 24px;">
+  <div style="background: var(--card); border: 1px solid var(--card-border); border-radius: 12px; padding: 20px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+      <span style="font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:0.07em; color:var(--muted);">Évolution du solde restant</span>
+      <div style="display:flex; gap:6px;">
+        <button onclick="setChartYear(-1)" style="background:var(--surface);border:1px solid var(--card-border);color:var(--text);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px;">&#8592;</button>
+        <span id="chartYearLabel" style="font-size:13px;font-weight:500;min-width:50px;text-align:center;line-height:2;"></span>
+        <button onclick="setChartYear(1)" style="background:var(--surface);border:1px solid var(--card-border);color:var(--text);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px;">&#8594;</button>
+      </div>
+    </div>
+    <canvas id="balanceChart" height="90"></canvas>
+  </div>
+</div>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<script>
+const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+let now = new Date();
+let curY = now.getFullYear(), curM = now.getMonth();
+let data = {};
+const VAR_CATS = ['nourriture','croquettes','loisirs','autres'];
+const FIXED_KEYS = ['loyer','electricite','gaz','internet','parking','tele','sport','animaux','banque'];
+let openCats = {};
+
+function key(y,m){ return y+'-'+m; }
+function getMonth(y,m){
+  let k=key(y,m);
+  if(!data[k]){
+    let varEntries={};
+    VAR_CATS.forEach(c=>varEntries[c]=[]);
+    data[k]={income:{},fixed:{},variable:varEntries,savings:{},carried:0,extra:[]};
+  }
+  return data[k];
+}
+function fmt(n){ return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
+function sum(obj){ return Object.values(obj).reduce((s,v)=>s+(parseFloat(v)||0),0); }
+function sumEntries(arr){ return arr.reduce((s,e)=>s+(parseFloat(e.amount)||0),0); }
+
+const INCOME_KEYS = ['salaire','apl'];
+
+function inheritPrevMonth(y,m){
+  let d=getMonth(y,m);
+  let pm=m-1, py=y;
+  if(pm<0){pm=11;py--;}
+  let prev=getMonth(py,pm);
+
+  // Inherit fixed charges — copie chaque clé absente depuis le mois précédent
+  FIXED_KEYS.forEach(k=>{
+    if(!(k in d.fixed) && (k in prev.fixed)) d.fixed[k]=prev.fixed[k];
+  });
+
+  // Inherit income (salaire, apl) — idem
+  INCOME_KEYS.forEach(k=>{
+    if(!(k in d.income) && (k in prev.income)) d.income[k]=prev.income[k];
+  });
+
+  // Valeurs fixes par défaut (modifiables) — on n'écrase que si la clé est absente
+  const defaults = { animaux: '100', banque: '10.50' };
+  for(let [k,v] of Object.entries(defaults)){
+    if(!(k in d.fixed)) d.fixed[k] = v;
+  }
+  const savDefaults = { epargne: '300', bourse: '100' };
+  for(let [k,v] of Object.entries(savDefaults)){
+    if(!(k in d.savings)) d.savings[k] = v;
+  }
+
+  // Sport: 30€ par défaut, 40€ tous les 4 mois à partir d'octobre 2026
+  // Référence : juin 2026 = mois 0 (valeur 30), octobre 2026 = mois 4 (valeur 40)
+  if(!('sport' in d.fixed)){
+    let refY=2026, refM=5; // juin 2026 (mois 0-indexé = 5)
+    let monthsDiff = (y - refY) * 12 + (m - refM);
+    let sportVal = (monthsDiff >= 0 && Math.floor(monthsDiff / 4) % 2 === 1) ? 40 : 30;
+    // Octobre 2026 = mois 4 depuis juin → 40, puis tous les 4 mois alternance
+    // Logique : 40 si dans un cycle "impair" de 4 mois depuis juin 2026
+    // juin→sept = cycle 0 → 30 ; oct→jan = cycle 1 → 40 ; fév→mai = cycle 2 → 30 ; etc.
+    d.fixed['sport'] = String(sportVal);
+  }
+}
+
+function toggleCat(cat){
+  openCats[cat]=!openCats[cat];
+  document.getElementById('entries-'+cat).classList.toggle('open', openCats[cat]);
+  document.getElementById('add-'+cat).classList.toggle('open', openCats[cat]);
+  document.getElementById('chev-'+cat).classList.toggle('open', openCats[cat]);
+}
+
+function addExtraEntry(){
+  let amt=parseFloat(document.getElementById('amt-extra').value);
+  if(isNaN(amt)||amt<=0) return;
+  let lbl=document.getElementById('lbl-extra').value.trim()||'Extra';
+  let d=getMonth(curY,curM);
+  if(!d.extra) d.extra=[];
+  d.extra.push({amount:amt, label:lbl});
+  document.getElementById('amt-extra').value='';
+  document.getElementById('lbl-extra').value='';
+  renderExtraEntries();
+  update();
+}
+
+function delExtraEntry(idx){
+  let d=getMonth(curY,curM);
+  if(!d.extra) d.extra=[];
+  d.extra.splice(idx,1);
+  renderExtraEntries();
+  update();
+}
+
+function renderExtraEntries(){
+  let d=getMonth(curY,curM);
+  let entries=d.extra||[];
+  let el=document.getElementById('entries-extra');
+  el.innerHTML=entries.map((e,i)=>
+    `<div class="var-entry">
+      <span class="var-entry-label">${e.label}</span>
+      <span class="var-entry-amount" style="color:var(--green);">+ ${fmt(e.amount)}</span>
+      <button class="var-entry-del" onclick="delExtraEntry(${i})" title="Supprimer">×</button>
+    </div>`
+  ).join('');
+  let total=sumEntries(entries);
+  document.getElementById('cat-total-extra').textContent=total>0?fmt(total):'0,00 €';
+}
+
+function addVarEntry(cat){
+  let amt=parseFloat(document.getElementById('amt-'+cat).value);
+  if(isNaN(amt)||amt<=0) return;
+  let lbl=document.getElementById('lbl-'+cat).value.trim()||cat;
+  getMonth(curY,curM).variable[cat].push({amount:amt, label:lbl});
+  document.getElementById('amt-'+cat).value='';
+  document.getElementById('lbl-'+cat).value='';
+  renderVarEntries(cat);
+  update();
+}
+
+function delVarEntry(cat, idx){
+  getMonth(curY,curM).variable[cat].splice(idx,1);
+  renderVarEntries(cat);
+  update();
+}
+
+function renderVarEntries(cat){
+  let entries=getMonth(curY,curM).variable[cat]||[];
+  let el=document.getElementById('entries-'+cat);
+  el.innerHTML=entries.map((e,i)=>
+    `<div class="var-entry">
+      <span class="var-entry-label">${e.label}</span>
+      <span class="var-entry-amount">- ${fmt(e.amount)}</span>
+      <button class="var-entry-del" onclick="delVarEntry('${cat}',${i})" title="Supprimer">×</button>
+    </div>`
+  ).join('');
+  let total=sumEntries(entries);
+  document.getElementById('cat-total-'+cat).textContent=total>0?fmt(total):'0,00 €';
+}
+
+function saveInputs(){
+  let d=getMonth(curY,curM);
+  document.querySelectorAll('.income-input').forEach(el=>{ d.income[el.dataset.key]=el.value; });
+  document.querySelectorAll('.fixed-input').forEach(el=>{ d.fixed[el.dataset.key]=el.value; });
+  document.querySelectorAll('.savings-input').forEach(el=>{ d.savings[el.dataset.key]=el.value; });
+  persistData();
+}
+
+function persistData(){
+  try { localStorage.setItem('budget_data', JSON.stringify(data)); } catch(e){}
+}
+
+function loadPersistedData(){
+  try {
+    let saved = localStorage.getItem('budget_data');
+    if(saved) data = JSON.parse(saved);
+  } catch(e){}
+}
+
+function loadInputs(){
+  inheritPrevMonth(curY,curM);
+  let d=getMonth(curY,curM);
+  document.querySelectorAll('.income-input').forEach(el=>{ el.value=d.income[el.dataset.key]||''; });
+  document.querySelectorAll('.fixed-input').forEach(el=>{ el.value=d.fixed[el.dataset.key]||''; });
+  document.querySelectorAll('.savings-input').forEach(el=>{ el.value=d.savings[el.dataset.key]||''; });
+  VAR_CATS.forEach(c=>renderVarEntries(c));
+  renderExtraEntries();
+}
+
+function update(){
+  saveInputs();
+  let d=getMonth(curY,curM);
+  let incBase=sum(d.income);
+  let extraTotal=sumEntries(d.extra||[]);
+  let incTotal=incBase+extraTotal+(d.carried||0);
+  let fixTotal=sum(d.fixed);
+  let varTotal=VAR_CATS.reduce((s,c)=>s+sumEntries(d.variable[c]||[]),0);
+  let savTotal=sum(d.savings);
+  let expTotal=fixTotal+varTotal+savTotal;
+  let balance=incTotal-expTotal;
+
+  document.getElementById('carriedDisplay').textContent=fmt(d.carried||0);
+  document.getElementById('incomeTotal').textContent=fmt(incTotal);
+  document.getElementById('fixedTotal').textContent=fmt(fixTotal);
+  document.getElementById('fixedHeader').textContent=fmt(fixTotal);
+  document.getElementById('varSubTotal').textContent=fmt(varTotal);
+  document.getElementById('varHeader').textContent=fmt(varTotal);
+  document.getElementById('savingsTotal').textContent=fmt(savTotal);
+  document.getElementById('savingsHeader').textContent=fmt(savTotal);
+
+  document.getElementById('sumIncome').textContent=fmt(incTotal);
+  document.getElementById('sumFixed').textContent=fmt(fixTotal);
+  document.getElementById('sumVar').textContent=fmt(varTotal+savTotal);
+  let balEl=document.getElementById('sumBalance');
+  balEl.textContent=fmt(balance);
+  balEl.className='sum-value balance '+(balance>=0?'pos':'neg');
+
+  let pct=incTotal>0?Math.min(100,Math.round((expTotal/incTotal)*100)):0;
+  document.getElementById('pctLabel').textContent=pct+' %';
+  let bar=document.getElementById('barFill');
+  bar.style.width=pct+'%';
+  bar.style.background=pct>=90?'var(--red)':pct>=70?'var(--amber)':'var(--green)';
+
+  let btn=document.getElementById('transferBtn');
+  let desc=document.getElementById('transferDesc');
+  if(balance>0){
+    desc.textContent=`Il vous reste ${fmt(balance)} ce mois-ci, à reporter en revenu le mois prochain.`;
+    btn.disabled=false;
+    btn.textContent=`Reporter ${fmt(balance)} →`;
+  } else if(balance===0){
+    desc.textContent='Budget parfaitement équilibré ce mois-ci.';
+    btn.disabled=true; btn.textContent='Reporter →';
+  } else {
+    desc.textContent=`Attention : dépenses supérieures aux revenus de ${fmt(Math.abs(balance))}.`;
+    btn.disabled=true; btn.textContent='Reporter →';
+  }
+  if(typeof Chart !== 'undefined' && typeof renderChart === 'function') renderChart();
+}
+
+function transferToNext(){
+  saveInputs();
+  let d=getMonth(curY,curM);
+  let incTotal=sum(d.income)+sumEntries(d.extra||[])+(d.carried||0);
+  let varTotal=VAR_CATS.reduce((s,c)=>s+sumEntries(d.variable[c]||[]),0);
+  let expTotal=sum(d.fixed)+varTotal+sum(d.savings);
+  let balance=incTotal-expTotal;
+  if(balance<=0) return;
+  let nm=curM+1, ny=curY;
+  if(nm>11){nm=0;ny++;}
+  getMonth(ny,nm).carried=(getMonth(ny,nm).carried||0)+balance;
+  curY=ny; curM=nm;
+  persistData();
+  render();
+}
+
+function changeMonth(dir){
+  saveInputs();
+  curM+=dir;
+  if(curM<0){curM=11;curY--;}
+  if(curM>11){curM=0;curY++;}
+  render();
+}
+
+function render(){
+  document.getElementById('monthLabel').textContent=MONTHS[curM]+' '+curY;
+  loadInputs();
+  update();
+  if(typeof Chart !== 'undefined') renderChart();
+}
+
+// Enter key support for adding entries
+document.addEventListener('keydown', function(e){
+  if(e.key==='Enter'){
+    VAR_CATS.forEach(cat=>{
+      let amtEl=document.getElementById('amt-'+cat);
+      let lblEl=document.getElementById('lbl-'+cat);
+      if(document.activeElement===amtEl||document.activeElement===lblEl) addVarEntry(cat);
+    });
+    let amtEx=document.getElementById('amt-extra');
+    let lblEx=document.getElementById('lbl-extra');
+    if(document.activeElement===amtEx||document.activeElement===lblEx) addExtraEntry();
+  }
+});
+
+let chartYear = new Date().getFullYear();
+let balChart = null;
+
+function setChartYear(dir){
+  chartYear += dir;
+  renderChart();
+}
+
+function renderChart(){
+  document.getElementById('chartYearLabel').textContent = chartYear;
+  const labels = MONTHS;
+  const balances = [];
+  for(let m=0; m<12; m++){
+    let d = getMonth(chartYear, m);
+    let incTotal = sum(d.income) + (d.carried||0);
+    let varTotal = VAR_CATS.reduce((s,c)=>s+sumEntries(d.variable[c]||[]),0);
+    let expTotal = sum(d.fixed) + varTotal + sum(d.savings);
+    balances.push(parseFloat((incTotal - expTotal).toFixed(2)));
+  }
+
+  const ctx = document.getElementById('balanceChart').getContext('2d');
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+  const textColor = isDark ? '#7b82a0' : '#7b82a0';
+
+  if(balChart) balChart.destroy();
+  balChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels.map(l => l.substring(0,3)),
+      datasets: [{
+        label: 'Solde restant',
+        data: balances,
+        backgroundColor: balances.map(v => v >= 0 ? 'rgba(52,199,123,0.7)' : 'rgba(247,95,95,0.7)'),
+        borderColor: balances.map(v => v >= 0 ? '#34c77b' : '#f75f5f'),
+        borderWidth: 1.5,
+        borderRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ' ' + ctx.raw.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €'
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 12 } } },
+        y: {
+          grid: { color: gridColor },
+          ticks: {
+            color: textColor, font: { size: 11 },
+            callback: v => v.toLocaleString('fr-FR') + ' €'
+          }
+        }
+      }
+    }
+  });
+}
+
+loadPersistedData();
+render();
+</script>
+</body>
+</html>
