@@ -191,12 +191,57 @@
   .var-add-label:focus { outline: none; border-color: var(--accent); }
   .var-add-btn { background: var(--accent); color: #fff; border: none; border-radius: 5px; width: 28px; height: 28px; font-size: 18px; cursor: pointer; line-height: 1; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .var-add-btn:hover { opacity: 0.85; }
+
+  /* LOGIN SCREEN */
+  #loginScreen {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000;
+  }
+  .login-box {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 16px; padding: 40px 36px; width: 100%; max-width: 380px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .login-title { font-size: 22px; font-weight: 700; text-align: center; margin-bottom: 4px; }
+  .login-subtitle { font-size: 13px; color: var(--muted); text-align: center; margin-top: -8px; }
+  .login-input {
+    width: 100%; padding: 11px 14px; background: var(--surface);
+    border: 1px solid var(--card-border); border-radius: 8px;
+    color: var(--text); font-size: 15px; font-family: inherit;
+  }
+  .login-input:focus { outline: none; border-color: var(--accent); }
+  .login-btn {
+    width: 100%; padding: 12px; background: var(--accent); color: #fff;
+    border: none; border-radius: 8px; font-size: 15px; font-weight: 600;
+    cursor: pointer; font-family: inherit; transition: opacity 0.15s;
+  }
+  .login-btn:hover { opacity: 0.85; }
+  .login-btn:disabled { opacity: 0.4; cursor: default; }
+  .login-error { font-size: 13px; color: var(--red); text-align: center; min-height: 18px; }
+  #appScreen { display: none; }
 </style>
 </head>
 <body>
 
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-title">💰 Mon Budget</div>
+    <div class="login-subtitle">Connecte-toi pour accéder à ton budget</div>
+    <input class="login-input" type="email" id="loginEmail" placeholder="Adresse email" />
+    <input class="login-input" type="password" id="loginPassword" placeholder="Mot de passe"
+      onkeydown="if(event.key==='Enter') doLogin()" />
+    <div class="login-error" id="loginError"></div>
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">Se connecter</button>
+  </div>
+</div>
+
+<div id="appScreen">
 <header>
   <h1>💰 Mon Budget Mensuel</h1>
+  <span id="userEmail" style="font-size:12px;color:var(--muted);"></span>
+  <button onclick="doLogout()" style="background:var(--card);border:1px solid var(--card-border);color:var(--muted);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;">Déconnexion</button>
+  <span id="syncStatus" style="font-size:12px;color:var(--muted);background:var(--card);border:1px solid var(--card-border);padding:4px 10px;border-radius:6px;">Connexion…</span>
   <div class="month-nav">
     <button onclick="changeMonth(-1)">&#8592;</button>
     <span id="monthLabel"></span>
@@ -428,6 +473,11 @@
 </div>
 
 
+</div><!-- /appScreen -->
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 
 <script>
@@ -576,15 +626,85 @@ function saveInputs(){
   persistData();
 }
 
-function persistData(){
-  try { localStorage.setItem('budget_data', JSON.stringify(data)); } catch(e){}
+// ── Firebase ──────────────────────────────────────────
+let db = null;
+let fbRef = null;
+let saveTimeout = null;
+
+function initFirebase(){
+  firebase.initializeApp({
+    apiKey: "AIzaSyBLneSgcj6L_sQUc4t5IhGHmqzLx757DPI",
+    authDomain: "mon-budjet-cbeed.firebaseapp.com",
+    databaseURL: "https://mon-budjet-cbeed-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "mon-budjet-cbeed",
+    storageBucket: "mon-budjet-cbeed.firebasestorage.app",
+    messagingSenderId: "660333486156",
+    appId: "1:660333486156:web:874020ff0f81f6ffba14e9"
+  });
+  db = firebase.database();
+
+  // Surveille l'état de connexion
+  firebase.auth().onAuthStateChanged(user => {
+    if(user){
+      fbRef = db.ref('budget/' + user.uid);
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('appScreen').style.display = 'block';
+      document.getElementById('userEmail').textContent = user.email;
+      loadPersistedData(()=>{ render(); });
+    } else {
+      document.getElementById('loginScreen').style.display = 'flex';
+      document.getElementById('appScreen').style.display = 'none';
+      setStatus('Non connecté');
+    }
+  });
 }
 
-function loadPersistedData(){
-  try {
-    let saved = localStorage.getItem('budget_data');
-    if(saved) data = JSON.parse(saved);
-  } catch(e){}
+function doLogin(){
+  let email = document.getElementById('loginEmail').value.trim();
+  let pwd = document.getElementById('loginPassword').value;
+  let btn = document.getElementById('loginBtn');
+  let err = document.getElementById('loginError');
+  err.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Connexion…';
+  firebase.auth().signInWithEmailAndPassword(email, pwd)
+    .catch(e => {
+      err.textContent = 'Email ou mot de passe incorrect.';
+      btn.disabled = false;
+      btn.textContent = 'Se connecter';
+    });
+}
+
+function doLogout(){
+  firebase.auth().signOut();
+}
+
+function persistData(){
+  if(!fbRef) return;
+  // Debounce : attend 800ms après la dernière frappe pour sauvegarder
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(()=>{
+    fbRef.set(data).catch(e => console.error('Erreur sauvegarde Firebase:', e));
+  }, 800);
+}
+
+function loadPersistedData(callback){
+  if(!fbRef){ callback(); return; }
+  setStatus('Chargement…');
+  fbRef.once('value').then(snap=>{
+    if(snap.exists()) data = snap.val();
+    setStatus('✓ Connecté');
+    callback();
+  }).catch(e=>{
+    console.error('Erreur chargement Firebase:', e);
+    setStatus('⚠ Hors ligne');
+    callback();
+  });
+}
+
+function setStatus(msg){
+  let el = document.getElementById('syncStatus');
+  if(el) el.textContent = msg;
 }
 
 function loadInputs(){
@@ -755,8 +875,7 @@ function renderChart(){
   });
 }
 
-loadPersistedData();
-render();
+initFirebase();
 </script>
 </body>
 </html>
